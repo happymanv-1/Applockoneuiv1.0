@@ -1,0 +1,6 @@
+{
+  "name": "AppLocker",
+  "description": "Secure App Locker with fingerprint and pattern authentication",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
