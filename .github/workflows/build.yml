@@ -23,11 +23,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # الحل السحري: إجبار غيت هوب على تثبيت Gradle حديث (8.6) ليعمل بدون ملفات الـ Wrapper
+    # تحديث نسخة الـ Gradle لتتوافق مع إصدار الـ Plugin الخاص بك
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
-        gradle-version: '8.6'
+        gradle-version: '9.3.1'
 
     - name: Check or Generate Debug Keystore
       run: |
@@ -47,7 +47,7 @@ jobs:
         git commit -m "chore: persist generated debug.keystore [skip ci]"
         git push
 
-    # استخدام أمر gradle المباشر الذي تم تثبيته للتو بدلاً من ./gradlew المفقود
+    # استخدام gradle مباشرة (الإصدار 9.3.1) للقيام بعملية البناء
     - name: Build Debug APK
       run: gradle assembleDebug
 
