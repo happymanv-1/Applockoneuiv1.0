@@ -1,0 +1,57 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+# إعطاء صلاحية لغيت هوب ليقوم بحفظ ورفع الملف تلقائياً إلى مستودعك
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    # فحص إذا كان الملف موجوداً، وإذا لم يكن موجوداً يتم توليده وحفظ حالة التوليد
+    - name: Check or Generate Debug Keystore
+      run: |
+        if [ ! -f debug.keystore ]; then
+          keytool -genkey -v -keystore debug.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias androiddebugkey -keypass android -storepass android -dname "CN=Android Debug,O=Android,C=US"
+          echo "GENERATED=true" >> $GITHUB_ENV
+        else
+          echo "GENERATED=false" >> $GITHUB_ENV
+        fi
+
+    # إذا تم توليد ملف جديد، غيت هوب يقوم بعمل Commit و Push ليرفعه إلى مستودعك تلقائياً
+    - name: Commit Keystore back to Repository
+      if: env.GENERATED == 'true'
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add debug.keystore
+        git commit -m "chore: persist generated debug.keystore for stable builds"
+        git push
+
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/*.apk
