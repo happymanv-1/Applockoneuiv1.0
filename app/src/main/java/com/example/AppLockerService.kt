@@ -282,7 +282,7 @@ class AppLockerService : Service() {
     private fun showLockOverlay(targetPackage: String) {
         val intent = Intent(this, OverlayActivity::class.java).apply {
             putExtra("TARGET_PACKAGE", targetPackage)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
         }
         startActivity(intent)
     }

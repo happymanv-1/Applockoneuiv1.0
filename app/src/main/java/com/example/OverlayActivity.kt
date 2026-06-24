@@ -52,6 +52,26 @@ class OverlayActivity : AppCompatActivity() {
     }
 
     private var targetPackage: String = ""
+    private var activeBiometricPrompt: androidx.biometric.BiometricPrompt? = null
+
+    private val closeOverlayReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            if (intent?.action == "ACTION_CLOSE_OVERLAY") {
+                Log.d("OverlayActivity", "Received ACTION_CLOSE_OVERLAY broadcast. Cancelling biometric prompt and finishing activity.")
+                cancelBiometricPrompt()
+                finish()
+            }
+        }
+    }
+
+    private fun cancelBiometricPrompt() {
+        try {
+            activeBiometricPrompt?.cancelAuthentication()
+        } catch (e: Exception) {
+            Log.e("OverlayActivity", "Error cancelling biometric prompt", e)
+        }
+        activeBiometricPrompt = null
+    }
 
     override fun onResume() {
         super.onResume()
@@ -68,10 +88,43 @@ class OverlayActivity : AppCompatActivity() {
         super.onDestroy()
         isVisible = false
         isOverlayPending = false
+        cancelBiometricPrompt()
+        try {
+            unregisterReceiver(closeOverlayReceiver)
+        } catch (e: Exception) {
+            Log.w("OverlayActivity", "Error unregistering closeOverlayReceiver", e)
+        }
+    }
+
+    override fun finish() {
+        super.finish()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Disable transitions instantly on start
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(android.app.Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
+
+        // Register receiver to close overlay on screen off
+        val filter = android.content.IntentFilter("ACTION_CLOSE_OVERLAY")
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(closeOverlayReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(closeOverlayReceiver, filter)
+        }
         
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -151,6 +204,7 @@ class OverlayActivity : AppCompatActivity() {
                     Toast.makeText(applicationContext, "Verification failed", Toast.LENGTH_SHORT).show()
                 }
             })
+        activeBiometricPrompt = biometricPrompt
 
         val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
             .setTitle("Unlock $appLabel")
