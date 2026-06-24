@@ -56,3 +56,13 @@ jobs:
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/*.apk
+    - name: Create Release and Upload APK
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/heads/')
+      with:
+        tag_name: v1.1
+        name: Release v1.1
+        body: "تحديث جديد للبناء التلقائي."
+        files: app/build/outputs/apk/debug/*.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
