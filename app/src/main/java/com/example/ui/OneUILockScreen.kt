@@ -92,16 +92,24 @@ fun OneUILockScreen(
 
             // App Icon
             if (appIconDrawable != null) {
-                try {
+                val bitmap = remember {
+                    try {
+                        appIconDrawable.toBitmap().asImageBitmap()
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                
+                if (bitmap != null) {
                     Image(
-                        bitmap = appIconDrawable.toBitmap().asImageBitmap(),
+                        bitmap = bitmap,
                         contentDescription = appLabel,
                         modifier = Modifier
                             .size(80.dp)
                             .clip(RoundedCornerShape(20.dp)),
                         contentScale = ContentScale.Crop
                     )
-                } catch (e: Exception) {
+                } else {
                     // Fallback if icon fails
                     Box(
                         modifier = Modifier
