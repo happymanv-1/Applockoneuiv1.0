@@ -9,7 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Process
 import android.provider.Settings
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,7 +29,7 @@ import com.example.ui.AnalyticsScreen
 import com.example.ui.CategoryDetailScreen
 import com.example.ui.theme.MyApplicationTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val requestNotificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
