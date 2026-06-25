@@ -181,43 +181,14 @@ class AppLockerService : Service() {
                 UsageStatsManager.INTERVAL_DAILY,
                 endTime - 1000 * 60, // Look back 60 seconds
                 endTime
-            )
-            if (stats != null && stats.isNotEmpty()) {
-                val sorted = stats.sortedByDescending { it.lastTimeUsed }
-                return sorted.firstOrNull()?.packageName
-            }
-        } catch (e: Exception) {
-            Log.e("AppLockerService", "Error querying queryUsageStats", e)
-        }
-
-        return null
+                private fun showLockOverlay(targetPackage: String) {
+    val intent = Intent(this, OverlayActivity::class.java).apply {
+        putExtra("TARGET_PACKAGE", targetPackage)
+        // Remove overlay-specific flags
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }
-
-    private suspend fun checkForegroundApp() {
-        val detectedPackage = getForegroundPackageName() ?: return
-
-        val packageChanged = detectedPackage != currentForegroundPackage
-        if (packageChanged) {
-            val previousPackage = currentForegroundPackage
-            currentForegroundPackage = detectedPackage
-
-            // --- Exit State Trigger ---
-            // If the user has exited an unlocked app, we record the exit timestamp.
-            // Do NOT record exit timestamp if the new foreground package is OUR OWN app/overlay (since unlocking/verifying is in progress)
-            if (currentForegroundPackage != packageName) {
-                for ((pkg, exitTime) in unlockedAppsMap) {
-                    if (pkg != currentForegroundPackage && exitTime == 0L) {
-                        unlockedAppsMap[pkg] = System.currentTimeMillis()
-                        Log.d("AppLockerService", "User exited unlocked application: $pkg. Timer started.")
-                    }
+    startActivity(intent)
                 }
-            }
-        }
-
-        if (currentForegroundPackage == packageName) {
-            // Ignore showing locked overlay for our own settings & password prompt activity
-            return
-        }
 
         // --- Continuous Lock/Overlay Verification ---
         val lockedApps = appPreferences.lockedAppsFlow.first()
