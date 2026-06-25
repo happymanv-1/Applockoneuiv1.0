@@ -160,7 +160,7 @@ class AppLockerService : Service() {
             val event = UsageEvents.Event()
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
-                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED || 
+                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED ||
                     event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
                     if (event.timeStamp > latestTime) {
                         latestResumed = event.packageName
@@ -181,38 +181,57 @@ class AppLockerService : Service() {
                 UsageStatsManager.INTERVAL_DAILY,
                 endTime - 1000 * 60, // Look back 60 seconds
                 endTime
-                private fun showLockOverlay(targetPackage: String) {
-    val intent = Intent(this, OverlayActivity::class.java).apply {
-        putExtra("TARGET_PACKAGE", targetPackage)
-        // Remove overlay-specific flags
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+            if (!stats.isNullOrEmpty()) {
+                val mostRecent = stats.maxByOrNull { it.lastTimeUsed }
+                return mostRecent?.packageName
+            }
+        } catch (e: Exception) {
+            Log.e("AppLockerService", "Error querying UsageStats", e)
+        }
+
+        return null
     }
-    startActivity(intent)
-                }
 
-        // --- Continuous Lock/Overlay Verification ---
-        val lockedApps = appPreferences.lockedAppsFlow.first()
-        if (lockedApps.contains(currentForegroundPackage)) {
-            val exitTime = unlockedAppsMap[currentForegroundPackage]
-            val appGraceMs = getAppGracePeriodMs(currentForegroundPackage)
+    // Called from the serviceScope coroutine in startTracking()
+    private suspend fun checkForegroundApp() {
+        val fg = getForegroundPackageName() ?: ""
+        if (fg.isEmpty()) {
+            currentForegroundPackage = ""
+            return
+        }
 
-            val isUnlocked = exitTime != null && (exitTime == 0L || (System.currentTimeMillis() - exitTime) <= appGraceMs)
+        // If same as previous, continue
+        if (fg == currentForegroundPackage) return
 
-            if (!isUnlocked) {
-                // If not unlocked, enforce the lock overlay continuously if not visible and not already pending
-                if (!OverlayActivity.isVisible && !OverlayActivity.isOverlayPending) {
-                    OverlayActivity.isOverlayPending = true
-                    Log.d("AppLockerService", "Locked app $currentForegroundPackage in foreground but overlay is not visible. Forcing overlay.")
-                    showLockOverlay(currentForegroundPackage)
-                    logBlockEvent(currentForegroundPackage)
-                }
-            } else {
-                // If unlocked but was counting down in background, reset its exit timestamp to 0L since they are inside it again
-                if (exitTime != null && exitTime > 0L) {
-                    Log.d("AppLockerService", "Returned within grace period for $currentForegroundPackage. Resetting exit time.")
-                    unlockedAppsMap[currentForegroundPackage] = 0L
+        // Update current foreground package
+        currentForegroundPackage = fg
+
+        // Check locked apps and enforce overlay
+        try {
+            val lockedApps = appPreferences.lockedAppsFlow.first()
+            if (lockedApps.contains(currentForegroundPackage)) {
+                val exitTime = unlockedAppsMap[currentForegroundPackage]
+                val appGraceMs = getAppGracePeriodMs(currentForegroundPackage)
+
+                val isUnlocked = exitTime != null && (exitTime == 0L || (System.currentTimeMillis() - exitTime) <= appGraceMs)
+
+                if (!isUnlocked) {
+                    if (!OverlayActivity.isVisible && !OverlayActivity.isOverlayPending) {
+                        OverlayActivity.isOverlayPending = true
+                        Log.d("AppLockerService", "Locked app $currentForegroundPackage in foreground but overlay is not visible. Forcing overlay.")
+                        showLockOverlay(currentForegroundPackage)
+                        logBlockEvent(currentForegroundPackage)
+                    }
+                } else {
+                    if (exitTime != null && exitTime > 0L) {
+                        Log.d("AppLockerService", "Returned within grace period for $currentForegroundPackage. Resetting exit time.")
+                        unlockedAppsMap[currentForegroundPackage] = 0L
+                    }
                 }
             }
+        } catch (e: Exception) {
+            Log.e("AppLockerService", "Error checking foreground/locked apps", e)
         }
     }
 
@@ -299,7 +318,7 @@ class AppLockerService : Service() {
             val prefs = getSharedPreferences("unlock_analytics_prefs", Context.MODE_PRIVATE)
             val current = prefs.getInt(packageName, 0)
             prefs.edit().putInt(packageName, current + 1).apply()
-            Log.d("AppLockerService", "incrementUnlockCount: $packageName to ${current + 1}")
+            Log.d("AppLockerService", "incrementUnlockCount: $packageName to ${'$'}{current + 1}")
         } catch (e: Exception) {
             Log.e("AppLockerService", "Error incrementing unlock count", e)
         }
