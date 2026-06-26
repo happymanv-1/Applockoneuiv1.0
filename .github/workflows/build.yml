@@ -7,7 +7,7 @@ on:
     branches: [ "main", "master" ]
 
 permissions:
-  contents: write # Required for GitHub Actions to create releases and push the keystore
+  contents: write 
 
 jobs:
   build:
@@ -47,13 +47,13 @@ jobs:
         git push
 
     - name: Build Debug APK
-      run: ./gradlew assembleDebug # Changed to gradlew to prevent environment mismatches
+      run: gradle assembleDebug
 
     - name: Create Release and Upload APK
       uses: softprops/action-gh-release@v2
-      if: github.event_name == 'push' # Only create a release on actual pushes, not PRs
+      if: github.event_name == 'push'
       with:
-        tag_name: v1.2-b${{ github.run_number }} # Dynamic tag (e.g., v1.2-b1, v1.2-b2) so it never errors out
+        tag_name: v1.2-b${{ github.run_number }}
         name: Release v1.2 (Build #${{ github.run_number }})
         body: |
           Automated build for version 1.2.
