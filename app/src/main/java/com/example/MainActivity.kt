@@ -57,7 +57,6 @@ class MainActivity : FragmentActivity() {
                                 viewModel = viewModel,
                                 onPermissionSetupClick = {
                                     requestPermissionsAndStartService()
-                                    SamsungBatteryHelper.requestIgnoreBatteryOptimizations(this@MainActivity)
                                 },
                                 onNavigateToSettings = {
                                     navController.navigate("settings")

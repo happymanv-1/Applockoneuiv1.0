@@ -142,6 +142,22 @@ class AppLockerService : Service() {
     }
     
     private var currentForegroundPackage = ""
+    private var lastForegroundPackage = ""
+
+    private fun isTemporaryOrSystemPackage(pkgName: String): Boolean {
+        if (pkgName.isEmpty()) return true
+        if (pkgName == packageName) return true // Our own app
+        if (pkgName == "com.android.systemui") return true
+        if (pkgName == "android") return true
+        
+        // Keyboards / Input methods
+        val lower = pkgName.lowercase()
+        if (lower.contains("keyboard") || lower.contains("inputmethod") || lower.contains("ime") || lower.contains("latin")) {
+            return true
+        }
+        
+        return false
+    }
 
     private fun startTracking() {
         serviceScope.launch {
@@ -227,12 +243,12 @@ class AppLockerService : Service() {
 
             // --- Exit State Trigger ---
             // If the user has exited an unlocked app, we record the exit timestamp.
-            // Do NOT record exit timestamp if the new foreground package is OUR OWN app/overlay (since unlocking/verifying is in progress)
-            if (currentForegroundPackage != packageName) {
+            // Do NOT record exit timestamp if the new foreground package is a temporary/system package (like keyboard, system UI, or our own app)
+            if (!isTemporaryOrSystemPackage(currentForegroundPackage)) {
                 for ((pkg, exitTime) in unlockedAppsMap) {
                     if (pkg != currentForegroundPackage && exitTime == 0L) {
                         unlockedAppsMap[pkg] = System.currentTimeMillis()
-                        Log.d("AppLockerService", "User exited unlocked application: $pkg. Timer started.")
+                        Log.d("AppLockerService", "User exited unlocked application: $pkg to $currentForegroundPackage. Timer started.")
                     }
                 }
             }
@@ -240,6 +256,7 @@ class AppLockerService : Service() {
 
         if (currentForegroundPackage == packageName) {
             // Ignore showing locked overlay for our own settings & password prompt activity
+            lastForegroundPackage = currentForegroundPackage
             return
         }
 
@@ -254,33 +271,38 @@ class AppLockerService : Service() {
             Log.d("AppLockerService", "Checking lock for $currentForegroundPackage: isUnlocked=$isUnlocked, currentFingerprintType=$currentFingerprintType")
 
             if (!isUnlocked) {
-                // If not unlocked, enforce the lock screen continuously if not visible and not already pending
-                val isVisibleAny = if (currentFingerprintType == FingerprintType.UNDER_DISPLAY) {
-                    FullScreenLockActivity.isVisible
-                } else {
-                    OverlayActivity.isVisible
-                }
-
-                val isPendingAny = if (currentFingerprintType == FingerprintType.UNDER_DISPLAY) {
-                    FullScreenLockActivity.isOverlayPending
-                } else {
-                    OverlayActivity.isOverlayPending
-                }
-
-                if (currentFingerprintType == FingerprintType.UNKNOWN) {
-                    Log.d("AppLockerService", "FingerprintType is UNKNOWN. Safety catch: bypass locking for target $currentForegroundPackage.")
-                    return
-                }
-
-                if (!isVisibleAny && !isPendingAny) {
-                    if (currentFingerprintType == FingerprintType.UNDER_DISPLAY) {
-                        FullScreenLockActivity.isOverlayPending = true
+                // State Transition Tracking: Only trigger the lock screen when transitioning into this app
+                val isTransition = currentForegroundPackage != lastForegroundPackage
+                if (isTransition) {
+                    // If not unlocked, enforce the lock screen continuously if not visible and not already pending
+                    val isVisibleAny = if (currentFingerprintType == FingerprintType.UNDER_DISPLAY) {
+                        FullScreenLockActivity.isVisible
                     } else {
-                        OverlayActivity.isOverlayPending = true
+                        OverlayActivity.isVisible
                     }
-                    Log.d("AppLockerService", "Forcing Lock Screen: target=$currentForegroundPackage type=$currentFingerprintType isVisibleAny=$isVisibleAny isPendingAny=$isPendingAny")
-                    showLockOverlay(currentForegroundPackage)
-                    logBlockEvent(currentForegroundPackage)
+
+                    val isPendingAny = if (currentFingerprintType == FingerprintType.UNDER_DISPLAY) {
+                        FullScreenLockActivity.isOverlayPending
+                    } else {
+                        OverlayActivity.isOverlayPending
+                    }
+
+                    if (currentFingerprintType == FingerprintType.UNKNOWN) {
+                        Log.d("AppLockerService", "FingerprintType is UNKNOWN. Safety catch: bypass locking for target $currentForegroundPackage.")
+                        lastForegroundPackage = currentForegroundPackage
+                        return
+                    }
+
+                    if (!isVisibleAny && !isPendingAny) {
+                        if (currentFingerprintType == FingerprintType.UNDER_DISPLAY) {
+                            FullScreenLockActivity.isOverlayPending = true
+                        } else {
+                            OverlayActivity.isOverlayPending = true
+                        }
+                        Log.d("AppLockerService", "Forcing Lock Screen: target=$currentForegroundPackage type=$currentFingerprintType isVisibleAny=$isVisibleAny isPendingAny=$isPendingAny")
+                        showLockOverlay(currentForegroundPackage)
+                        logBlockEvent(currentForegroundPackage)
+                    }
                 }
             } else {
                 // If unlocked but was counting down in background, reset its exit timestamp to 0L since they are inside it again
@@ -290,6 +312,8 @@ class AppLockerService : Service() {
                 }
             }
         }
+        
+        lastForegroundPackage = currentForegroundPackage
     }
 
     /**
@@ -327,6 +351,18 @@ class AppLockerService : Service() {
     }
 
     private fun showLockOverlay(targetPackage: String) {
+        // Instantaneous Foreground Double-Check
+        val immediateForeground = getForegroundPackageName()
+        if (immediateForeground != targetPackage) {
+            Log.d("AppLockerService", "Aborting lock overlay: User already switched away from $targetPackage to $immediateForeground")
+            if (currentFingerprintType == FingerprintType.UNDER_DISPLAY) {
+                FullScreenLockActivity.isOverlayPending = false
+            } else {
+                OverlayActivity.isOverlayPending = false
+            }
+            return
+        }
+
         val targetClass = if (currentFingerprintType == FingerprintType.UNDER_DISPLAY) {
             FullScreenLockActivity::class.java
         } else {

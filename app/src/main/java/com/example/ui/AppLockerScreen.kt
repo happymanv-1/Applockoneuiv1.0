@@ -65,6 +65,7 @@ fun AppLockerScreen(
     val categoriesList by viewModel.categoriesState.collectAsStateWithLifecycle()
 
     var appToLock by remember { mutableStateOf<AppInfo?>(null) }
+    var showBatteryGuideDialog by remember { mutableStateOf(false) }
 
     val isAllPermissionsGranted by viewModel.isAllPermissionsGranted.collectAsStateWithLifecycle()
     val isAppReadyToRun by viewModel.isAppReadyToRun.collectAsStateWithLifecycle()
@@ -195,6 +196,7 @@ fun AppLockerScreen(
                                 isAppReadyToRun = isAppReadyToRun,
                                 fingerprintType = fingerprintType,
                                 onPermissionSetupClick = onPermissionSetupClick,
+                                onBatterySetupClick = { showBatteryGuideDialog = true },
                                 modifier = Modifier.padding(bottom = 20.dp)
                             )
                         }
@@ -468,8 +470,18 @@ fun AppLockerScreen(
                                                 installedApps.find { it.packageName == timer.packageName }
                                             }
                                             val displayName = matchedApp?.appName ?: timer.packageName.substringAfterLast(".").replaceFirstChar { it.uppercase() }
-                                            val appIconBitmap = remember(matchedApp) {
-                                                matchedApp?.iconBitmap?.asImageBitmap()
+                                            var appIconBitmap by remember(timer.packageName) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+                                            LaunchedEffect(timer.packageName) {
+                                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                    try {
+                                                        val pm = context.packageManager
+                                                        val icon = pm.getApplicationIcon(timer.packageName)
+                                                        val bitmap = icon.toBitmap(width = 128, height = 128)
+                                                        appIconBitmap = bitmap.asImageBitmap()
+                                                    } catch (e: Exception) {
+                                                        // Fallback ignored
+                                                    }
+                                                }
                                             }
 
                                             Column {
@@ -479,9 +491,10 @@ fun AppLockerScreen(
                                                     modifier = Modifier.fillMaxWidth()
                                                 ) {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        if (appIconBitmap != null) {
+                                                        val iconBitmap = appIconBitmap
+                                                        if (iconBitmap != null) {
                                                             Image(
-                                                                bitmap = appIconBitmap,
+                                                                bitmap = iconBitmap,
                                                                 contentDescription = null,
                                                                 modifier = Modifier
                                                                     .size(36.dp)
@@ -614,8 +627,7 @@ fun AppLockerScreen(
                                 .clip(RoundedCornerShape(28.dp))
                                 .background(Color(0xFF141416))
                                 .clickable {
-                                    onPermissionSetupClick()
-                                    SamsungBatteryHelper.requestIgnoreBatteryOptimizations(context)
+                                    showBatteryGuideDialog = true
                                 }
                                 .padding(20.dp)
                         ) {
@@ -983,6 +995,15 @@ fun AppLockerScreen(
                 containerColor = Color(0xFF141416)
             )
         }
+
+        if (showBatteryGuideDialog) {
+            BatteryOptimizationDialog(
+                onDismiss = { showBatteryGuideDialog = false },
+                onGoToSettings = {
+                    SamsungBatteryHelper.requestIgnoreBatteryOptimizations(context)
+                }
+            )
+        }
     }
 }
 
@@ -994,6 +1015,22 @@ fun AppItemRow(
     onToggleLock: () -> Unit,
     onChooseCategory: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    var appIconBitmap by remember(appInfo.packageName) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+    LaunchedEffect(appInfo.packageName) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val pm = context.packageManager
+                val icon = pm.getApplicationIcon(appInfo.packageName)
+                val bitmap = icon.toBitmap(width = 128, height = 128)
+                appIconBitmap = bitmap.asImageBitmap()
+            } catch (e: Exception) {
+                // Fallback ignored
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1006,13 +1043,9 @@ fun AppItemRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            val appIconBitmap = remember(appInfo.packageName) {
-                appInfo.iconBitmap?.asImageBitmap()
-            }
-
             if (appIconBitmap != null) {
                 Image(
-                    bitmap = appIconBitmap,
+                    bitmap = appIconBitmap!!,
                     contentDescription = "${appInfo.appName} Icon",
                     modifier = Modifier
                         .size(44.dp)
@@ -1114,6 +1147,7 @@ fun PermissionsRequiredCard(
     isAppReadyToRun: Boolean,
     fingerprintType: FingerprintType,
     onPermissionSetupClick: () -> Unit,
+    onBatterySetupClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1239,7 +1273,7 @@ fun PermissionsRequiredCard(
                         description = "Prevent sleep / kill on Samsung / OneUI",
                         icon = Icons.Default.BatteryChargingFull,
                         onGrantClick = {
-                            com.example.SamsungBatteryHelper.requestIgnoreBatteryOptimizations(context)
+                            onBatterySetupClick()
                         }
                     )
                 }

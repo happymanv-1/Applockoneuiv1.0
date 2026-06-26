@@ -263,9 +263,7 @@ class AppLockerViewModel(application: Application) : AndroidViewModel(applicatio
                 
                 try {
                     val appName = resolveInfo.loadLabel(pm).toString()
-                    val icon = resolveInfo.loadIcon(pm)
-                    val bitmap = icon?.toBitmap(width = 128, height = 128)
-                    AppInfo(packageName, appName, icon = icon, iconBitmap = bitmap)
+                    AppInfo(packageName, appName)
                 } catch (e: Exception) {
                     Log.e("AppLockerViewModel", "Error loading app info", e)
                     null

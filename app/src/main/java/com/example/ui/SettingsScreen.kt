@@ -32,8 +32,10 @@ fun SettingsScreen(
 ) {
     val gracePeriodMs by viewModel.gracePeriodMs.collectAsStateWithLifecycle()
     val relockOnScreenOff by viewModel.relockOnScreenOff.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var showCustomTimerDialog by remember { mutableStateOf(false) }
+    var showBatteryGuideDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -72,7 +74,6 @@ fun SettingsScreen(
         },
         containerColor = Color(0xFF000000) // Pure pitch black matching AMOLED main UI
     ) { paddingValues ->
-        val context = androidx.compose.ui.platform.LocalContext.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -366,7 +367,7 @@ fun SettingsScreen(
                         description = "Required to prevent the system from killing the background monitor.",
                         isGranted = batteryOptimizationsIgnored,
                         onFixClick = {
-                            com.example.SamsungBatteryHelper.requestIgnoreBatteryOptimizations(context)
+                            showBatteryGuideDialog = true
                         }
                     )
                 }
@@ -458,6 +459,15 @@ fun SettingsScreen(
                 }
             },
             containerColor = Color(0xFF141416) // Matching card color background for dialog
+        )
+    }
+
+    if (showBatteryGuideDialog) {
+        BatteryOptimizationDialog(
+            onDismiss = { showBatteryGuideDialog = false },
+            onGoToSettings = {
+                com.example.SamsungBatteryHelper.requestIgnoreBatteryOptimizations(context)
+            }
         )
     }
 

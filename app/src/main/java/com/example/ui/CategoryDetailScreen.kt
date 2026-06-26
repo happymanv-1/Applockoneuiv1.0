@@ -21,6 +21,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -232,8 +234,20 @@ fun CategoryDetailScreen(
                     ) {
                         items(filteredApps, key = { it.packageName }) { appInfo ->
                             val isAppLocked = lockedApps.contains(appInfo.packageName)
-                            val appIconBitmap = remember(appInfo.packageName) {
-                                appInfo.iconBitmap?.asImageBitmap()
+                            val context = LocalContext.current
+                            var appIconBitmap by remember(appInfo.packageName) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+
+                            LaunchedEffect(appInfo.packageName) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    try {
+                                        val pm = context.packageManager
+                                        val icon = pm.getApplicationIcon(appInfo.packageName)
+                                        val bitmap = icon.toBitmap(width = 128, height = 128)
+                                        appIconBitmap = bitmap.asImageBitmap()
+                                    } catch (e: Exception) {
+                                        // Fallback ignored
+                                    }
+                                }
                             }
 
                             Surface(
@@ -256,9 +270,10 @@ fun CategoryDetailScreen(
                                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        if (appIconBitmap != null) {
+                                        val iconBitmap = appIconBitmap
+                                        if (iconBitmap != null) {
                                             Image(
-                                                bitmap = appIconBitmap,
+                                                bitmap = iconBitmap,
                                                 contentDescription = "${appInfo.appName} icon",
                                                 modifier = Modifier
                                                     .size(40.dp)
