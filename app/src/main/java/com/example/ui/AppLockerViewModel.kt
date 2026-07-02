@@ -268,7 +268,8 @@ class AppLockerViewModel(application: Application) : AndroidViewModel(applicatio
                     Log.e("AppLockerViewModel", "Error loading app info", e)
                     null
                 }
-            }.sortedBy { it.appName.lowercase() }
+            }.distinctBy { it.packageName }
+             .sortedBy { it.appName.lowercase() }
             
             _installedApps.value = apps
             _isLoading.value = false
